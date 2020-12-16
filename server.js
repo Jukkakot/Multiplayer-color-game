@@ -43,7 +43,7 @@ function newConnection(socket) {
         // Search existing roomIds for a match
         console.log("Searching for existing room ID...");
         if (rooms[data.roomId] != null) {
-
+          
           // Add client to room with all connected clients 
           socket.join(data.name);
 
@@ -214,23 +214,24 @@ function getKeyByValue(object, value) {
 // room ID generator
 const roomNames =
    [
-     "melody",
-     "annabelle",
-     "solist",
-     "gala",
-     "afta",
-     "colomba",
-     "noblesse",
-     "marabel",
-     "siikli",
-     "asterix",
-     "sunita",
-     "jelly",
-     "nicolai",
-     "soraya",
-     "innovator",
-     "timo",
-     "mozard"
+    //  "melody",
+    //  "annabelle",
+    //  "solist",
+    //  "gala",
+    //  "afta",
+    //  "colomba",
+    //  "noblesse",
+    //  "marabel",
+    //  "siikli",
+    //  "asterix",
+    //  "sunita",
+    //  "jelly",
+    //  "nicolai",
+    //  "soraya",
+    //  "innovator",
+    //  "timo",
+    //  "mozard"
+    "test"
     ]
 
 const roomIds = randomNoRepeats(roomNames);

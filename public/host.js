@@ -15,68 +15,159 @@ Run http-server -c-1 -p80 to start server on open port 80.
 // Network Settings
 // const serverIp      = 'https://yourservername.herokuapp.com';
 // const serverIp      = 'https://yourprojectname.glitch.me';
-const serverIp      = '192.168.0.101';
-const serverPort    = '3000';
-const local         = true;   // true if running locally, false
-                              // if running on remote server
+const serverIp = '192.168.0.101';
+const serverPort = '3000';
+const local = true;   // true if running locally, false
+// if running on remote server
 
 // Global variables here. ---->
 
-const velScale	= 10;
+// const velScale = 10;
 const debug = true;
 let game;
-
+let colors = []
+let defNames 
 // <----
-
+let isGameStarted = false
+const tickRate = 100
+var allPlayersReady = true
 function preload() {
   setupHost();
 }
 
-function setup () {
+function setup() {
   createCanvas(windowWidth, windowHeight);
 
   // Host/Game setup here. ---->
-  
+  setupColors()
   game = new Game(width, height);
 
+
+  let bX, bY, bW, bH;
+
+  bX = 0.30 * windowWidth;
+  bY = windowHeight * 0.02;
+  bW = 0.4 * windowWidth;
+  bH = 0.1 * windowHeight;
+
+  startButton = createButton("Start game");
+  startButton.position(bX, bY)
+  startButton.size(bW, bH)
+  startButton.style('font-size', "40px");
+  startButton.mousePressed(startGame);
+  defNames = shuffle(["Ahven","Hauki","Silakka","Kuha","Lahna"])
+  setInterval(function () {
+    if (isGameStarted && allPlayersReady) {
+      var currColors = []
+      for (id in game.players) {
+        currColors.push(game.players[id].color)
+      }
+      if (game.numPlayers < 3) {
+        //if 1 or 2 players
+        //add one extra color to possible colors
+        for (c of colors) {
+          if (!currColors.includes(c)) {
+            currColors.push(c)
+            break
+          }
+        }
+        colors = shuffle(colors)
+        currColors = shuffle(currColors)
+      }
+      sendData("gameroundStart", {
+        roundColor: random(currColors)
+      })
+      setTimeout(function () {
+        sendData("gameroundEnd", {})
+      }, tickRate*5);
+      game.roundCount++
+      allPlayersReady = false
+
+    }
+  },
+    tickRate*5);
   // <----
 }
+function startGame(bool) {
+  if (game.numPlayers === 0) return
+  startButton.remove()
+  isGameStarted = !isGameStarted
+  let bX, bY, bW, bH;
 
+  bX = 0.30 * windowWidth;
+  bY = windowHeight * 0.02;
+  bW = 0.4 * windowWidth;
+  bH = 0.1 * windowHeight;
+  startButton = isGameStarted ? createButton("Pause game") : createButton("Continue game")
+  startButton.position(bX, bY)
+  startButton.size(bW, bH)
+  startButton.style('font-size', "40px");
+  startButton.mousePressed(startGame);
+  // startButton.setLabel(isGameStarted ? "Pause game" : "Continue game") 
+  // startButton.attribute("label","jahas")
+}
+function setupColors() {
+  colorMode(HSB);
+  for (var i = 0; i < 5; i++) {
+    if (i === 4) {
+      colors.push(color(5 * 62, 100, 100))
+      continue
+    }
+    colors.push(color(i * 62, 100, 100))
+  }
+  colorMode(RGB);
+  colors = shuffle(colors)
+}
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
 }
 
-function draw () {
-  background(15);
+function draw() {
+  background(0);
 
-  if(isHostConnected(display=true)) {
-    // Host/Game draw here. --->
-
-    // Display player IDs in top left corner
+  if (isHostConnected(display = true)) {
+    if(game.roundCount > 0 && game.numPlayers === 0){
+      isGameStarted = false
+      startButton.hide()
+      push()
+      textSize(80);
+      textAlign(CENTER, CENTER);
+      fill(255)
+      text("Game ended!", width/2, height/4);
+      pop()
+    }
     game.printPlayerIds(5, 30);
+    displayAddress();
+    // Host/Game draw here. --->
+    // Display player IDs in top left corner
 
     // Update and draw game objects
-    game.draw();
-
+    // game.draw();
     // <----
-
     // Display server address
-    displayAddress();
+
   }
 }
 
-function onClientConnect (data) {
+function onClientConnect(data) {
   // Client connect logic here. --->
   console.log(data.id + ' has connected. (Host)');
 
-  if (!game.checkId(data.id)) {
+  if (!game.checkId(data.id) && colors.length > 0 && !isGameStarted) {
+    isGameStarted = false
     game.add(data.id);
+    var color = colors[game.numPlayers - 1]
+    sendData("playercolor", {
+      color: color,
+      playerId: data.id
+    })
+    game.setColor(data.id, color);
   }
 
   // <----
 }
 
-function onClientDisconnect (data) {
+function onClientDisconnect(data) {
   // Client disconnect logic here. --->
 
   if (game.checkId(data.id)) {
@@ -86,9 +177,9 @@ function onClientDisconnect (data) {
   // <----
 }
 
-function onReceiveData (data) {
+function onReceiveData(data) {
   // Input data processing here. --->
-  console.log(data);
+  // console.log(data);
 
   // if (data.type === 'joystick') {
   //   processJoystick(data);
@@ -96,18 +187,32 @@ function onReceiveData (data) {
   if (data.type === 'button') {
     processButton(data);
   }
-  else if (data.type === 'playercolor') {
-    game.setColor(data.id, data.r*255, data.g*255, data.b*255);
-  }
   else if (data.type === 'playername') {
     game.setName(data.id, data.name);
   }
-  // else if (data.type === "playername") {
-  //   if(data.pName !== undefined && data.pName !== ""){
-  //     game.setName(data.id,data.pName)
-  //    }
-  // }
-
+  else if (data.type === 'roundresult') {
+    // roundColor: roundColor,
+    // buttonPressed: buttonWasPressed
+    var player = game.players[data.id]
+    if (player === undefined) return
+    player.roundCount ++
+    if (
+      (!isSameColor(data.roundColor, player.color) && !data.buttonPressed) ||
+      (isSameColor(data.roundColor, player.color) && data.buttonPressed)
+    ) {
+      //Was right color and pressed button, OR was not right color and didin't press button
+      print(player.name, "survived!")
+    } else {
+      //bad
+      player.lives--
+      print(player.name, "lost a life")
+      if (player.lives === 0) {
+        game.remove(data.id)
+        print(player.name, "lost the game!")
+      }
+    }
+    allPlayersReady = allPlayersChecked()
+  }
   // <----
 
   /* Example:
@@ -118,69 +223,63 @@ function onReceiveData (data) {
      Use `data.type` to get the message type sent by client.
   */
 }
+function allPlayersChecked() {
+  for(p in game.players){
+    if(game.players[p].roundCount !== game.roundCount){
+      return false
+    }
+  }
+  return true
+}
 
 // This is included for testing purposes to demonstrate that
 // messages can be sent from a host back to all connected clients
 function mousePressed() {
   sendData('timestamp', { timestamp: millis() });
+  // var wasCorrect = roundColor.levels[0] === playerColor.levels[0]
+  // sendData("round",{
+  //   wasCorrect:wasCorrect
+  // })
 }
 
 ////////////
 // Input processing
-// function processJoystick (data) {
-  
-//   game.setVelocity(data.id, data.joystickX*velScale, -data.joystickY*velScale);
-
-//   if (debug) {
-//     console.log(data.id + ': {' +
-//                 data.joystickX + ',' +
-//                 data.joystickY + '}');
-//   }
-// }
-
-function processButton (data) {
+function processButton(data) {
   game.players[data.id].val = data.button;
 
-  // game.createRipple(data.id, 300, 1000);
-  
+  // game.createRipple(data.id, 300, 1000);fon
+
   if (debug) {
     console.log(data.id + ': ' +
-                data.button);
+      data.button);
   }
 }
 
-// class Player {
-//   constructor (id) {
-//     this.id = "p"+this.id;
-//     // this.players[id].setCollider("rectangle", 0, 0, w, h);
-//     this.color = color(255, 255, 255);
-//     this.shapeColor = color(255, 255, 255);
-//     // this.scale = 1;
-//     // this.players[id].mass = 1;
-//     // this.colliders.add(this.players[id]);
-//     print(this.id + " added.");
-//   }
-// }
 // ////////////
 // // Game
 // // This simple placeholder game makes use of p5.play
 class Game {
-  constructor (w, h) {
-    this.w          = w;
-    this.h          = h;
-    this.players	= {};
-    this.numPlayers	= 0;
-    this.id         = 0;
+  constructor(w, h) {
+    this.w = w;
+    this.h = h;
+    this.players = {};
+    this.numPlayers = 0;
+    this.id = 0;
+    this.roundCount = 0
     // this.colliders	= new Group();
-    // this.ripples    = new Ripples();
+    // this.ripples    = new Riproples();
   }
 
-  add (id) {
+  add(id) {
     this.players[id] = {}
-    this.players[id].id = "player"+this.id;
+    this.players[id].id = "player" + this.id;
+    this.players[id].name = "Tuntematon "+defNames.shift()
     // this.players[id].setCollider("rectangle", 0, 0, w, h);
     this.players[id].color = color(255, 255, 255);
     this.players[id].shapeColor = color(255, 255, 255);
+    this.players[id].lives = 5
+    this.players[id].roundCount = 0
+    // this.players[id].lifes = 0
     // this.players[id].scale = 1;
     // this.players[id].mass = 1;
     // this.colliders.add(this.players[id]);
@@ -195,148 +294,56 @@ class Game {
     // drawSprites();
   }
 
-  // createRipple(id, r, duration) {
-  //   this.ripples.add(
-  //     this.players[id].position.x, 
-  //     this.players[id].position.y, 
-  //     r, 
-  //     duration, 
-  //     this.players[id].color);
-  // }
-
-  setColor (id, r, g, b) {
+  setColor(id, r, g, b) {
     this.players[id].color = color(r, g, b);
     this.players[id].shapeColor = color(r, g, b);
 
     print(this.players[id].id + " color added.");
   }
 
-  setName (id,name) {
+  setName(id, name) {
     this.players[id].name = name
 
     print(this.players[id].id + " name added.");
   }
-  remove (id) {
-      this.colliders.remove(this.players[id]);
-      this.players[id].remove();
-      delete this.players[id];
-      this.numPlayers--;
+  remove(id) {
+    // this.colliders.remove(this.players[id]);
+    // this.players[id].remove();
+    delete this.players[id];
+    this.numPlayers--;
   }
 
-  checkId (id) {
-      if (id in this.players) { return true; }
-      else { return false; }
+  checkId(id) {
+    if (id in this.players) { return true; }
+    else { return false; }
   }
 
-  printPlayerIds (x, y) {
-      push();
-          noStroke();
-          fill(255);
-          textSize(30);
-          text("# players: " + this.numPlayers, x, y);
+  printPlayerIds(x, y) {
+    push();
+    noStroke();
+    fill(255);
+    textSize(30);
+    text("# players: " + this.numPlayers + " (lives)", x, y);
 
-          y += 30;
-          
-          for (let id in this.players) {
-            fill(this.players[id].color);
-            if(this.players[id].name !== undefined){
-              text(this.players[id].name, x, y);
-            } else {
-              text(this.players[id].id, x, y);
-            }
-              
-              y += 30;
-          }
+    y += 30;
 
-      pop();
+    for (let id in this.players) {
+      if (this.players[id].lives > 0) {
+        fill(this.players[id].color);
+        text(this.players[id].name , x, y);
+        text(this.players[id].lives, x +this.players[id].name.length*20,y)
+        y += 30;
+      }
+    }
+
+    pop();
   }
 }
-
-  // setVelocity(id, velx, vely) {
-  //     this.players[id].velocity.x = velx;
-  //     this.players[id].velocity.y = vely;
-  // }
-
-  // checkBounds() {
-  //     for (let id in this.players) {
-
-  //         if (this.players[id].position.x < 0) {
-  //             this.players[id].position.x = this.w - 1;
-  //         }
-
-  //         if (this.players[id].position.x > this.w) {
-  //             this.players[id].position.x = 1;
-  //         }
-
-  //         if (this.players[id].position.y < 0) {
-  //             this.players[id].position.y = this.h - 1;
-  //         }
-
-  //         if (this.players[id].position.y > this.h) {
-  //             this.players[id].position.y = 1;
-  //         }
-  //     }
-//   }
-// }
-
-// // A simple pair of classes for generating ripples
-// class Ripples {
-//   constructor() {
-//     this.ripples = [];
-//   }
-
-//   add(x, y, r, duration, rcolor) {
-//     this.ripples.push(new Ripple(x, y, r, duration, rcolor));
-//   }
-
-//   draw() {
-//     for (let i = 0; i < this.ripples.length; i++) {
-//       // Draw each ripple in the array
-//       if(this.ripples[i].draw()) {
-//         // If the ripple is finished (returns true), remove it
-//         this.ripples.splice(i, 1);
-//       }
-//     }
-//   }
-// }
-
-// class Ripple {
-//   constructor(x, y, r, duration, rcolor) {
-//     this.x = x;
-//     this.y = y;
-//     this.r = r;
-
-//     // If rcolor is not defined, default to white
-//     if (rcolor == null) {
-//       rcolor = color(255);
-//     }
-
-//     this.stroke = rcolor;
-//     this.strokeWeight = 3;
-
-//     this.duration = duration;   // in milliseconds
-//     this.startTime = millis();
-//     this.endTime = this.startTime + this.duration;
-//   }
-
-//   draw() {
-//     let progress = (this.endTime - millis())/this.duration;
-//     let r = this.r*(1 - progress);
-
-//     push();
-//       stroke(red(this.stroke), 
-//              green(this.stroke), 
-//              blue(this.stroke), 
-//              255*progress);
-//       strokeWeight(this.strokeWeight);
-//       fill(0, 0);
-//       ellipse(this.x, this.y, r);
-//     pop();
-
-//     if (millis() > this.endTime) {
-//       return true;
-//     }
-
-//     return false;
-//   }
-// }
+function isSameColor(c1, c2) {
+  for (level in c1.levels) {
+    if (c1.levels[level] !== c2.levels[level]) {
+      return false
+    }
+  }
+  return true
+}

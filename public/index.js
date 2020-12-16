@@ -19,17 +19,9 @@ Run http-server -c-1 -p80 to start server on open port 80.
 const serverIp = '192.168.0.101';
 const serverPort = '3000';
 const local = true;   // true if running locally, false
-// if running on remote server
 
-// Global variables here. ---->
-
-// Initialize GUI related variables
-let gui = null;
-let button = null;
-let joystick = null;
-let joystickRes = 4;
-let thisJ = { x: 0, y: 0 };
-let prevJ = { x: 0, y: 0 };
+let interactButton = null;
+const tickrate = 1000
 
 // Initialize Game related variables
 let playerColor;
@@ -40,115 +32,137 @@ let joinInput
 let joinButton
 let joinName
 let nameButton
-
+let rX, rY, rW, rH
+let roundColor
 let hasSentName = false
+let buttonWasPressed
 // <----
+function endRound() {
+  sendData("roundresult", {
+    roundColor: roundColor,
+    buttonPressed: buttonWasPressed
+  })
+  roundColor = color(0,0,0)
+  buttonWasPressed = false
+  redraw()
+}
 
+function startRound(color) {
+  roundColor = color
+  buttonWasPressed = false
+  redraw()
+}
 function preload() {
   setupClient();
 }
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
-
+  buttonWasPressed = false
   // Client setup here. ---->
 
-  gui = createGui();
-
-  setPlayerColors();
-  setupUI();
-
+  // gui = createGui();
   joinName = createInput();
   nameButton = createElement('button', "start");
+  joinName.hide()
+  nameButton.hide()
 
+  // setupUI();
+  // setPlayerColors();
+  drawButton()
+  joinInput = createInput("test");
 
-  joinInput = createInput();
-  joinInput.position(width / 2 - joinInput.width, height / 2 + 20);
-  joinInput.size(width / 5, height / 20)
+  joinInput.position(width / 2 - joinInput.width * 1.3, height / 3);
+  joinInput.size(width / 2, 80)
   joinInput.style('font-size', "40px");
   joinInput.attribute('placeholder', "Room id");
   // joinInput.attribute('type', "text");
 
-  
+
 
   joinButton = createElement('button', "join");
-  joinButton.position(joinInput.x + joinInput.width, joinInput.y)
+  joinButton.position(joinInput.x, joinInput.y + joinInput.height)
   joinButton.size(joinInput.width / 2, joinInput.height)
   joinButton.style('font-size', "40px");
-  joinButton.attribute('type', "submit");
+  // joinButton.style("background-color", color(playerColor.levels[0], playerColor.levels[1], playerColor.levels[2]))
+  // joinButton.attribute('type', "submit");
   joinButton.mousePressed(() => {
     if (joinInput.value() !== "") {
       window.location.href = "?=" + joinInput.value()
-      
     }
   })
-  sendData('playercolor', {
-    r: red(playerColor) / 255,
-    g: green(playerColor) / 255,
-    b: blue(playerColor) / 255
-  });
-  // playerNameGui()
-  // <----
-
-  // Send any initial setup data to your host here.
-  /* 
-    Example: 
-    sendData('myDataType', { 
-      val1: 0,
-      val2: 128,
-      val3: true
-    });
-
-     Use `type` to classify message types for host.
-  */
-  //  print(playerName)
-
-
+  // colorMode(HSB)
+  roundColor = color(0,0,0)
+  
 }
 
 function windowResized() {
-  resizeCanvas(windowWidth, windowHeight);
+  resizeCanvas(window.innerWidth, window.innerHeight);
 }
-function playerNameGui () {
-  
-  joinName.position(width / 2 - joinInput.width, height / 2 + 20);
-  joinName.size(width / 5, height / 20)
-  joinName.style('font-size', "20px");
-  joinName.attribute('placeholder', "Player name");
+function playerNameGui() {
 
-  nameButton.position(joinName.x + joinName.width, joinName.y)
+  joinName.position(width / 2 - joinName.width / 2, height / 3);
+  joinName.size(width / 2, 80)
+  joinName.style('font-size', "30px");
+  joinName.attribute('placeholder', "Player name");
+  push()
+  fill(200);
+  textSize(40);
+  text("Setup player name (Optional)", joinName.x, joinName.y - joinName.height)
+  pop()
+  nameButton.position(joinName.x, joinName.y + joinName.height)
   nameButton.size(joinName.width / 2, joinName.height)
   nameButton.style('font-size', "40px");
   nameButton.attribute('type', "submit");
+  // nameButton.style("background-color", color(playerColor.levels[0], playerColor.levels[1], playerColor.levels[2]))
   nameButton.mousePressed(nameButtonPress)
+  joinName.show()
+  nameButton.show()
 }
 function nameButtonPress() {
   // var name = joinName.value()
-    if(joinName.value() !== ""){
-      sendData("playername",{
-        name:joinName.value()
-       
-      })
-    } 
-    hasSentName = true
-    joinName.remove()
-    nameButton.remove()
+  if (joinName.value() !== "") {
+    sendData("playername", {
+      name: joinName.value()
+    })
+  }
+  hasSentName = true
+  joinName.remove()
+  nameButton.remove()
+  interactButton.show()
 }
 function draw() {
   background(0);
-
   
   if (isClientConnected(display = true)) {
     if (joinInput || joinButton) {
       joinInput.remove()
       joinButton.remove()
-    } 
-    if(!hasSentName){
-      playerNameGui()
+      
     }
+    if(buttonWasPressed){
+      interactButton.hide()
+    } else {
+      interactButton.show()
+    }
+    if (!hasSentName) {
+      playerNameGui()
+      interactButton.hide()
+    } else {
+      interactButton.style("background-color", color(playerColor.levels[0], playerColor.levels[1], playerColor.levels[2]))
+      
+      //push()
+      fill(color(roundColor.levels))
+      rect(rX, rY, rW, rH)
+      //pop()
+    }
+
+
+
+
     // Client draw here. ---->
-    drawGui();
-    
+
+
 
     // <---
   }
@@ -161,7 +175,28 @@ function onReceiveData(data) {
   if (data.type === 'timestamp') {
     print(data.timestamp);
   }
-
+  else if (data.type === 'playercolor') {
+    console.log("playercolor", id, data)
+    if (data.playerId === id) {
+      playerColor = data.color
+    }
+  }
+  else if (data.type === 'gameroundStart') {
+    // colorMode(HSB);
+    startRound(data.roundColor)
+    // setTimeout(function () {
+    //   endRound()
+    // }, tickrate);
+    // colorMode(RGB);
+  }
+  else if (data.type === 'gameroundEnd') {
+    // colorMode(HSB);
+    endRound()
+    // setTimeout(function () {
+      
+    // }, tickrate);
+    // colorMode(RGB);
+  }  
   // <----
 
   /* Example:
@@ -175,94 +210,39 @@ function onReceiveData(data) {
 
 ////////////
 // GUI setup
-function setPlayerColors() {
-  let hue = random(0, 360);
-  colorMode(HSB);
-  playerColor = color(hue, 100, 100);
-  playerColorDim = color(hue, 100, 75);
-  colorMode(RGB);
-}
-
-function setupUI() {
+function drawButton() {
   // Temp variables for calculating GUI object positions
-  let jX, jY, jW, jH, bX, bY, bW, bH;
+  let bX, bY, bW, bH;
 
   // Rudimentary calculation based on portrait or landscape 
-  if (width < height) {
-    jX = 0.05 * width;
-    jY = 0.05 * height;
-    jW = 0.9 * width;
-    jH = 0.9 * width;
 
-    bX = 0.05 * windowWidth;
-    bY = 0.75 * windowHeight;
-    bW = 0.9 * windowWidth;
-    bH = 0.2 * windowHeight;
-  }
-  else {
-    jX = 0.05 * width;
-    jY = 0.05 * height;
-    jW = 0.9 * height;
-    jH = 0.9 * height;
+  bX = 0.05 * width;
+  bY = 0.75 * height;
+  bW = 0.9 * width;
+  bH = 0.2 * height;
 
-    bX = 0.75 * windowWidth;
-    bY = 0.05 * windowHeight;
-    bW = 0.2 * windowWidth;
-    bH = 0.9 * windowHeight;
-  }
+  rX = 0.05 * width;
+  rY = 0.05 * height;
+  rW = 0.9 * width;
+  rH = 0.9 * width;
 
-  // // Create joystick and button, stylize with player colors
-  // joystick = createJoystick("Joystick", jX, jY, jW, jH);
-  // joystick.setStyle({
-  //   handleRadius:     joystick.w*0.2, 
-  //   fillBg:           color(0), 
-  //   fillBgHover:      color(0), 
-  //   fillBgActive:     color(0), 
-  //   strokeBg:         playerColor, 
-  //   strokeBgHover:    playerColor, 
-  //   strokeBgActive:   playerColor, 
-  //   fillHandle:       playerColorDim, 
-  //   fillHandleHover:  playerColorDim, 
-  //   fillHandleActive: playerColor,
-  //   strokeHandleHover:  color(255),
-  //   strokeHandleActive: color(255)
-  // });
-  // joystick.onChange = onJoystickChange;
+  interactButton = createButton("Interact");
+  interactButton.position(bX, bY)
+  interactButton.size(bW, bH)
+  interactButton.style('font-size', "40px");
 
-  button = createButton("Interact", bX, bY, bW, bH);
-  button.setStyle({
-    textSize: 40,
-    fillBg: playerColorDim,
-    fillBgHover: playerColorDim,
-    fillBgActive: playerColor
-  });
-  button.onPress = onButtonPress;
-}
+  interactButton.hide()
+  interactButton.mousePressed(onButtonPress)}
+ 
+
+
 
 // ////////////
 // // Input processing
-// function onJoystickChange() {  
-//   thisJ.x = floor(joystick.val.x*joystickRes)/joystickRes;
-//   thisJ.y = floor(joystick.val.y*joystickRes)/joystickRes;
-
-//   if (thisJ.x != prevJ.x || thisJ.y != prevJ.y) {
-//     let data = {
-//       joystickX: thisJ.x,
-//       joystickY: thisJ.y
-//     }
-//     sendData('joystick', data);
-//   }
-
-//   prevJ.x = thisJ.x;
-//   prevJ.y = thisJ.y;
-// }
 
 function onButtonPress() {
-  let data = {
-    button: button.val
-  }
-
-  sendData('button', data);
+  buttonWasPressed = true
+  console.log("pressed")
 }
 
 /// Add these lines below sketch to prevent scrolling on mobile

@@ -14,7 +14,7 @@ function _processUrl() {
   const parameters = location.search.substring(1).split("&");
 
   const temp = parameters[0].split("=");
-  roomId = unescape(temp[1]);
+  roomId = unescape(temp[1]).toLowerCase();
 
   console.log("id: " + roomId);
 }
@@ -22,7 +22,7 @@ function _processUrl() {
 // Send data from client to host via server
 function sendData(datatype, data) {
   data.type   = datatype;
-  data.roomId = roomId;
+  data.roomId = roomId.toLowerCase();
   
   socket.emit('sendData', data);
 }
@@ -106,7 +106,7 @@ function setupClient() {
   if (local) { addr = serverIp + ':' + serverPort; }
   socket = io.connect(addr);
 
-  socket.emit('join', {name: 'client', roomId: roomId});
+  socket.emit('join', {name: 'client', roomId: roomId.toLowerCase()});
 
   socket.on('id', function(data) {
     id = data;
@@ -145,8 +145,8 @@ function _displayInstructions() {
   push();
     fill(200);
     textAlign(CENTER, CENTER);
-    textSize(20);
-    text("Please enter the room id at the", width/2, height/2-10);
-    text("bottom of the host screen.", width/2, height/2+10);
+    textSize(40);
+    text("Please enter the room id at the", width/2, 100);
+    text("bottom of the host screen.", width/2, 140);
   pop();
 }
