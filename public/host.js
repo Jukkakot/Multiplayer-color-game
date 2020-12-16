@@ -57,7 +57,7 @@ function setup() {
   startButton.mousePressed(startGame);
   defNames = shuffle(["Ahven","Hauki","Silakka","Kuha","Lahna"])
   setInterval(function () {
-    if (isGameStarted && allPlayersReady) {
+    if (isGameStarted && allPlayersChecked()) {
       var currColors = []
       for (id in game.players) {
         currColors.push(game.players[id].color)
@@ -77,15 +77,15 @@ function setup() {
       sendData("gameroundStart", {
         roundColor: random(currColors)
       })
-      setTimeout(function () {
-        sendData("gameroundEnd", {})
-      }, tickRate*5);
+      // setTimeout(function () {
+      //   sendData("gameroundEnd", {})
+      // }, tickRate*5);
       game.roundCount++
       allPlayersReady = false
 
     }
   },
-    tickRate*5);
+    tickRate*20);
   // <----
 }
 function startGame(bool) {
@@ -153,12 +153,14 @@ function onClientConnect(data) {
   // Client connect logic here. --->
   console.log(data.id + ' has connected. (Host)');
 
-  if (!game.checkId(data.id) && colors.length > 0 && !isGameStarted) {
+  if (!game.checkId(data.id) && colors.length > 0 && defNames.length > 0 && !isGameStarted) {
     isGameStarted = false
     game.add(data.id);
-    var color = colors[game.numPlayers - 1]
+    var color = colors.shift()
+    colors = shuffle(colors)
     sendData("playercolor", {
       color: color,
+      name:game.players[data.id].name,
       playerId: data.id
     })
     game.setColor(data.id, color);
@@ -211,7 +213,6 @@ function onReceiveData(data) {
         print(player.name, "lost the game!")
       }
     }
-    allPlayersReady = allPlayersChecked()
   }
   // <----
 
@@ -223,7 +224,9 @@ function onReceiveData(data) {
      Use `data.type` to get the message type sent by client.
   */
 }
+
 function allPlayersChecked() {
+  
   for(p in game.players){
     if(game.players[p].roundCount !== game.roundCount){
       return false
@@ -273,7 +276,7 @@ class Game {
   add(id) {
     this.players[id] = {}
     this.players[id].id = "player" + this.id;
-    this.players[id].name = "Tuntematon "+defNames.shift()
+    this.players[id].name = defNames.shift()
     // this.players[id].setCollider("rectangle", 0, 0, w, h);
     this.players[id].color = color(255, 255, 255);
     this.players[id].shapeColor = color(255, 255, 255);
@@ -324,14 +327,22 @@ class Game {
     fill(255);
     textSize(30);
     text("# players: " + this.numPlayers + " (lives)", x, y);
-
+    if(game.numPlayers === 0) return
     y += 30;
-
-    for (let id in this.players) {
+    
+    var sortedPlayers = Object.keys(game.players).map(function(key) {
+      return [key,game.players[key].lives,game.players[key].name]
+    });
+    sortedPlayers.sort(function(a, b) {
+      return b[1] - a[1];
+    });
+    
+    for (var player of sortedPlayers) {
+      var id = player[0]
       if (this.players[id].lives > 0) {
         fill(this.players[id].color);
         text(this.players[id].name , x, y);
-        text(this.players[id].lives, x +this.players[id].name.length*20,y)
+        text(this.players[id].lives, x + 130,y)
         y += 30;
       }
     }

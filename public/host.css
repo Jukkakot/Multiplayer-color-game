@@ -1,7 +1,7 @@
 html, body {
     margin: 0;
     padding: 0;
-    background-color: #646464;
+    background-color: black;
     display: flex;
     align-items: center;
     justify-content: center;

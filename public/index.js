@@ -20,11 +20,12 @@ const serverIp = '192.168.0.101';
 const serverPort = '3000';
 const local = true;   // true if running locally, false
 
-let interactButton = null;
-const tickrate = 1000
+let interactButton
+const tickrate = 100
 
 // Initialize Game related variables
 let playerColor;
+let playerName;
 let playerColorDim;
 
 //Dom elements
@@ -42,7 +43,7 @@ function endRound() {
     roundColor: roundColor,
     buttonPressed: buttonWasPressed
   })
-  roundColor = color(0,0,0)
+  roundColor = color(0, 0, 0)
   buttonWasPressed = false
   redraw()
 }
@@ -61,39 +62,39 @@ function setup() {
   buttonWasPressed = false
   // Client setup here. ---->
 
-  // gui = createGui();
-  joinName = createInput();
-  nameButton = createElement('button', "start");
-  joinName.hide()
-  nameButton.hide()
+  gui = createGui();
+  // joinName = createInput();
+  // nameButton = createElement('button', "start");
+  // joinName.hide()
+  // nameButton.hide()
 
   // setupUI();
   // setPlayerColors();
-  drawButton()
-  joinInput = createInput("test");
+  // drawButton()
+  // joinInput = createInput("test");
 
-  joinInput.position(width / 2 - joinInput.width * 1.3, height / 3);
-  joinInput.size(width / 2, 80)
-  joinInput.style('font-size', "40px");
-  joinInput.attribute('placeholder', "Room id");
-  // joinInput.attribute('type', "text");
+  // joinInput.position(width / 2 - joinInput.width * 1.3, height / 3);
+  // joinInput.size(width / 2, 80)
+  // joinInput.style('font-size', "40px");
+  // joinInput.attribute('placeholder', "Room id");
+  // // joinInput.attribute('type', "text");
 
 
 
-  joinButton = createElement('button', "join");
-  joinButton.position(joinInput.x, joinInput.y + joinInput.height)
-  joinButton.size(joinInput.width / 2, joinInput.height)
-  joinButton.style('font-size', "40px");
-  // joinButton.style("background-color", color(playerColor.levels[0], playerColor.levels[1], playerColor.levels[2]))
-  // joinButton.attribute('type', "submit");
-  joinButton.mousePressed(() => {
-    if (joinInput.value() !== "") {
-      window.location.href = "?=" + joinInput.value()
-    }
-  })
+  // joinButton = createElement('button', "join");
+  // joinButton.position(joinInput.x, joinInput.y + joinInput.height)
+  // joinButton.size(joinInput.width / 2, joinInput.height)
+  // joinButton.style('font-size', "40px");
+  // // joinButton.style("background-color", color(playerColor.levels[0], playerColor.levels[1], playerColor.levels[2]))
+  // // joinButton.attribute('type', "submit");
+  // joinButton.mousePressed(() => {
+  //   if (joinInput.value() !== "") {
+  //     window.location.href = "?=" + joinInput.value()
+  //   }
+  // })
   // colorMode(HSB)
-  roundColor = color(0,0,0)
-  
+  roundColor = color(0, 0, 0)
+
 }
 
 function windowResized() {
@@ -133,29 +134,33 @@ function nameButtonPress() {
 }
 function draw() {
   background(0);
-  
+
   if (isClientConnected(display = true)) {
-    if (joinInput || joinButton) {
-      joinInput.remove()
-      joinButton.remove()
-      
-    }
-    if(buttonWasPressed){
-      interactButton.hide()
-    } else {
-      interactButton.show()
-    }
-    if (!hasSentName) {
-      playerNameGui()
-      interactButton.hide()
-    } else {
-      interactButton.style("background-color", color(playerColor.levels[0], playerColor.levels[1], playerColor.levels[2]))
-      
-      //push()
-      fill(color(roundColor.levels))
-      rect(rX, rY, rW, rH)
-      //pop()
-    }
+    // if (joinInput || joinButton) {
+    //   joinInput.remove()
+    //   joinButton.remove()
+    drawGui();
+    // }
+    // if(playerColor){
+    //   interactButton.style("background-color", color(playerColor.levels[0], playerColor.levels[1], playerColor.levels[2]))
+    // }
+    // if (buttonWasPressed) {
+    //   // interactButton.hide()
+    // } else {
+    //   // interactButton.show()
+    // }
+    // if (!hasSentName) {
+    //   playerNameGui()
+    //   interactButton.hide()
+    // } else {
+
+
+    //push()
+    fill(color(roundColor.levels))
+    // fill(255)
+    rect(rX, rY, rW, rH)
+    //pop()
+    // }
 
 
 
@@ -179,24 +184,28 @@ function onReceiveData(data) {
     console.log("playercolor", id, data)
     if (data.playerId === id) {
       playerColor = data.color
+      playerName = data.name
+      setupUI()
+      // interactButton.style("background-color", color(playerColor.levels[0], playerColor.levels[1], playerColor.levels[2]))
+      // interactButton.show()
     }
   }
   else if (data.type === 'gameroundStart') {
     // colorMode(HSB);
     startRound(data.roundColor)
-    // setTimeout(function () {
-    //   endRound()
-    // }, tickrate);
+    setTimeout(function () {
+      endRound()
+    }, tickrate * 8);
     // colorMode(RGB);
   }
-  else if (data.type === 'gameroundEnd') {
-    // colorMode(HSB);
-    endRound()
-    // setTimeout(function () {
-      
-    // }, tickrate);
-    // colorMode(RGB);
-  }  
+  // else if (data.type === 'gameroundEnd') {
+  //   // colorMode(HSB);
+  //   endRound()
+  //   // setTimeout(function () {
+
+  //   // }, tickrate);
+  //   // colorMode(RGB);
+  // }  
   // <----
 
   /* Example:
@@ -210,7 +219,7 @@ function onReceiveData(data) {
 
 ////////////
 // GUI setup
-function drawButton() {
+function setupUI() {
   // Temp variables for calculating GUI object positions
   let bX, bY, bW, bH;
 
@@ -221,19 +230,31 @@ function drawButton() {
   bW = 0.9 * width;
   bH = 0.2 * height;
 
-  rX = 0.05 * width;
-  rY = 0.05 * height;
-  rW = 0.9 * width;
-  rH = 0.9 * width;
 
-  interactButton = createButton("Interact");
-  interactButton.position(bX, bY)
-  interactButton.size(bW, bH)
-  interactButton.style('font-size', "40px");
+  rX = bX;
+  rY = bY - bH * 0.1;
+  rW = bW;
+  rH = bH * -3.5;
 
-  interactButton.hide()
-  interactButton.mousePressed(onButtonPress)}
- 
+  button = createButton(playerName, bX, bY, bW, bH);
+  button.setStyle({
+    textSize: 40,
+    fillBg: color(playerColor.levels[0], playerColor.levels[1], playerColor.levels[2],150),
+    fillBgHover: color(playerColor.levels[0], playerColor.levels[1], playerColor.levels[2]),
+    fillBgActive: color(playerColor.levels[0], playerColor.levels[1], playerColor.levels[2]),
+    rounding:50
+  });
+  button.onPress = onButtonPress;
+  // interactButton = createButton("Interact");
+  // interactButton.addClass("intButton")
+  // interactButton.position(bX, bY)
+  // interactButton.size(bW, bH)
+  // interactButton.style('font-size', "40px");
+
+  // interactButton.hide()
+  // interactButton.mousePressed(onButtonPress)
+  // interactButton.touchStarted(onButtonPress)
+}
 
 
 
