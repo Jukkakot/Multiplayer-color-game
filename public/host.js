@@ -26,11 +26,15 @@ const local = true;   // true if running locally, false
 const debug = true;
 let game;
 let colors = []
-let defNames 
+let defNames
 // <----
 let isGameStarted = false
 const tickRate = 100
 var allPlayersReady = true
+
+//Start button location on screen
+let bX, bY, bW, bH;
+
 function preload() {
   setupHost();
 }
@@ -38,12 +42,10 @@ function preload() {
 function setup() {
   createCanvas(windowWidth, windowHeight);
 
-  // Host/Game setup here. ---->
+  //Game colors used (Currently we use 5 colors so max player count is 5)
   setupColors()
-  game = new Game(width, height);
-
-
-  let bX, bY, bW, bH;
+  game = new Game();
+  
 
   bX = 0.30 * windowWidth;
   bY = windowHeight * 0.02;
@@ -54,8 +56,12 @@ function setup() {
   startButton.position(bX, bY)
   startButton.size(bW, bH)
   startButton.style('font-size', "40px");
-  startButton.mousePressed(startGame);
-  defNames = shuffle(["Ahven","Hauki","Silakka","Kuha","Lahna"])
+  startButton.mousePressed(startButtonClick);
+
+  //Default game names (can be changed)
+  defNames = shuffle(["Ahven", "Hauki", "Silakka", "Kuha", "Lahna"])
+
+  //Main game loop, sends new color to clients
   setInterval(function () {
     if (isGameStarted && allPlayersChecked()) {
       var currColors = []
@@ -63,7 +69,6 @@ function setup() {
         currColors.push(game.players[id].color)
       }
       if (game.numPlayers < 3) {
-        //if 1 or 2 players
         //add one extra color to possible colors
         for (c of colors) {
           if (!currColors.includes(c)) {
@@ -72,40 +77,32 @@ function setup() {
           }
         }
         colors = shuffle(colors)
-        currColors = shuffle(currColors)
       }
       sendData("gameroundStart", {
-        roundColor: random(currColors)
+        roundColor: random(currColors),
+        players: game.players
       })
-      // setTimeout(function () {
-      //   sendData("gameroundEnd", {})
-      // }, tickRate*5);
       game.roundCount++
       allPlayersReady = false
-
     }
-  },
-    tickRate*20);
-  // <----
+  }, tickRate * 15);
 }
-function startGame(bool) {
-  if (game.numPlayers === 0) return
-  startButton.remove()
-  isGameStarted = !isGameStarted
-  let bX, bY, bW, bH;
 
-  bX = 0.30 * windowWidth;
-  bY = windowHeight * 0.02;
-  bW = 0.4 * windowWidth;
-  bH = 0.1 * windowHeight;
+function startButtonClick() {
+  //Cant start or pause game with no players in it
+  if (game.numPlayers === 0) return
+  isGameStarted = !isGameStarted
+
+  startButton.remove()
+  //Couldn't figure out how to rename button label so we just create a new one each time unfortunately
   startButton = isGameStarted ? createButton("Pause game") : createButton("Continue game")
   startButton.position(bX, bY)
   startButton.size(bW, bH)
   startButton.style('font-size', "40px");
-  startButton.mousePressed(startGame);
-  // startButton.setLabel(isGameStarted ? "Pause game" : "Continue game") 
-  // startButton.attribute("label","jahas")
+  startButton.mousePressed(startButtonClick);
 }
+
+//Generates 5 colors used during the game
 function setupColors() {
   colorMode(HSB);
   for (var i = 0; i < 5; i++) {
@@ -118,6 +115,7 @@ function setupColors() {
   colorMode(RGB);
   colors = shuffle(colors)
 }
+
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
 }
@@ -126,86 +124,51 @@ function draw() {
   background(0);
 
   if (isHostConnected(display = true)) {
-    if(game.roundCount > 0 && game.numPlayers === 0){
-      isGameStarted = false
+    if (game.roundCount > 0 && game.numPlayers === 0) {
       startButton.hide()
       push()
       textSize(80);
       textAlign(CENTER, CENTER);
       fill(255)
-      text("Game ended!", width/2, height/4);
+      text("Game ended!", width / 2, height / 4);
       pop()
+      noLoop()
+      return
     }
     game.printPlayerIds(5, 30);
     displayAddress();
-    // Host/Game draw here. --->
-    // Display player IDs in top left corner
-
-    // Update and draw game objects
-    // game.draw();
-    // <----
-    // Display server address
-
   }
 }
 
 function onClientConnect(data) {
-  // Client connect logic here. --->
-  console.log(data.id + ' has connected. (Host)');
-
+  console.log(data.id + ' has connected.');
   if (!game.checkId(data.id) && colors.length > 0 && defNames.length > 0 && !isGameStarted) {
-    isGameStarted = false
     game.add(data.id);
-    var color = colors.shift()
-    colors = shuffle(colors)
-    sendData("playercolor", {
-      color: color,
-      name:game.players[data.id].name,
-      playerId: data.id
-    })
-    game.setColor(data.id, color);
   }
-
-  // <----
 }
 
 function onClientDisconnect(data) {
-  // Client disconnect logic here. --->
-
   if (game.checkId(data.id)) {
     game.remove(data.id);
   }
-
-  // <----
 }
 
 function onReceiveData(data) {
-  // Input data processing here. --->
-  // console.log(data);
-
-  // if (data.type === 'joystick') {
-  //   processJoystick(data);
+  //Not used currently
+  // if (data.type === 'playername') {
+  //   game.setName(data.id, data.name);
   // }
-  if (data.type === 'button') {
-    processButton(data);
-  }
-  else if (data.type === 'playername') {
-    game.setName(data.id, data.name);
-  }
-  else if (data.type === 'roundresult') {
-    // roundColor: roundColor,
-    // buttonPressed: buttonWasPressed
+  if (data.type === 'roundresult') {
     var player = game.players[data.id]
     if (player === undefined) return
-    player.roundCount ++
-    if (
-      (!isSameColor(data.roundColor, player.color) && !data.buttonPressed) ||
-      (isSameColor(data.roundColor, player.color) && data.buttonPressed)
-    ) {
+    player.roundCount++
+    if ((!isSameColor(data.roundColor, player.color) && !data.buttonPressed) ||
+      (isSameColor(data.roundColor, player.color) && data.buttonPressed)) {
       //Was right color and pressed button, OR was not right color and didin't press button
-      print(player.name, "survived!")
+      //Good
+      // print(player.name, "survived!")
     } else {
-      //bad
+      //Bad
       player.lives--
       print(player.name, "lost a life")
       if (player.lives === 0) {
@@ -213,105 +176,65 @@ function onReceiveData(data) {
         print(player.name, "lost the game!")
       }
     }
+    allPlayersChecked()
   }
-  // <----
-
-  /* Example:
-     if (data.type === 'myDataType') {
-       processMyData(data);
-     }
-
-     Use `data.type` to get the message type sent by client.
-  */
 }
 
 function allPlayersChecked() {
-  
-  for(p in game.players){
-    if(game.players[p].roundCount !== game.roundCount){
+
+  for (p in game.players) {
+    if (game.players[p].roundCount !== game.roundCount) {
       return false
     }
   }
+  //Send round result to clients if all clients has been checked
+  sendData('result', {
+    players: game.players
+  });
   return true
 }
 
-// This is included for testing purposes to demonstrate that
-// messages can be sent from a host back to all connected clients
-function mousePressed() {
-  sendData('timestamp', { timestamp: millis() });
-  // var wasCorrect = roundColor.levels[0] === playerColor.levels[0]
-  // sendData("round",{
-  //   wasCorrect:wasCorrect
-  // })
-}
-
-////////////
-// Input processing
-function processButton(data) {
-  game.players[data.id].val = data.button;
-
-  // game.createRipple(data.id, 300, 1000);fon
-
-  if (debug) {
-    console.log(data.id + ': ' +
-      data.button);
-  }
-}
-
-// ////////////
-// // Game
-// // This simple placeholder game makes use of p5.play
 class Game {
-  constructor(w, h) {
-    this.w = w;
-    this.h = h;
+  constructor() {
     this.players = {};
     this.numPlayers = 0;
+    //Id for players
     this.id = 0;
     this.roundCount = 0
-    // this.colliders	= new Group();
-    // this.ripples    = new Riproples();
   }
 
   add(id) {
     this.players[id] = {}
     this.players[id].id = "player" + this.id;
     this.players[id].name = defNames.shift()
-    // this.players[id].setCollider("rectangle", 0, 0, w, h);
-    this.players[id].color = color(255, 255, 255);
-    this.players[id].shapeColor = color(255, 255, 255);
     this.players[id].lives = 5
     this.players[id].roundCount = 0
-    // this.players[id].lifes = 0
-    // this.players[id].scale = 1;
-    // this.players[id].mass = 1;
-    // this.colliders.add(this.players[id]);
     print(this.players[id].id + " added.");
     this.id++;
     this.numPlayers++;
-  }
 
-  draw() {
-    // this.checkBounds();
-    // this.ripples.draw();
-    // drawSprites();
+    //Give the player a color
+    this.setColor(id,  colors.shift());
+    colors = shuffle(colors)
+    //Send the color to player client
+    sendData("playercolor", {
+      color: this.players[id].color,
+      name: this.players[id].name,
+      playerId: id,
+      players: this.players
+    })
   }
 
   setColor(id, r, g, b) {
     this.players[id].color = color(r, g, b);
-    this.players[id].shapeColor = color(r, g, b);
-
     print(this.players[id].id + " color added.");
   }
-
-  setName(id, name) {
-    this.players[id].name = name
-
-    print(this.players[id].id + " name added.");
-  }
+  //Not used currently
+  // setName(id, name) {
+  //   this.players[id].name = name
+  //   print(this.players[id].id + " name added.");
+  // }
   remove(id) {
-    // this.colliders.remove(this.players[id]);
-    // this.players[id].remove();
     delete this.players[id];
     this.numPlayers--;
   }
@@ -327,22 +250,23 @@ class Game {
     fill(255);
     textSize(30);
     text("# players: " + this.numPlayers + " (lives)", x, y);
-    if(game.numPlayers === 0) return
+    if (game.numPlayers === 0) return
     y += 30;
     
-    var sortedPlayers = Object.keys(game.players).map(function(key) {
-      return [key,game.players[key].lives,game.players[key].name]
+    //Sorting the players by their lives
+    var sortedPlayers = Object.keys(game.players).map(function (key) {
+      return [key, game.players[key].lives, game.players[key].name]
     });
-    sortedPlayers.sort(function(a, b) {
+    sortedPlayers.sort(function (a, b) {
       return b[1] - a[1];
     });
-    
+
     for (var player of sortedPlayers) {
       var id = player[0]
       if (this.players[id].lives > 0) {
         fill(this.players[id].color);
-        text(this.players[id].name , x, y);
-        text(this.players[id].lives, x + 130,y)
+        text(this.players[id].name, x, y);
+        text(this.players[id].lives, x + 130, y)
         y += 30;
       }
     }
@@ -350,6 +274,7 @@ class Game {
     pop();
   }
 }
+
 function isSameColor(c1, c2) {
   for (level in c1.levels) {
     if (c1.levels[level] !== c2.levels[level]) {
