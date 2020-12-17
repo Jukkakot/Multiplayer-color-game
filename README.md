@@ -1,5 +1,5 @@
 # Color game
-Small multiplayer game to test socket.io with. \n
+Small multiplayer game to test socket.io with.
 
 Template for this game is from [here](https://github.com/L05/p5.multiplayer "p5.multiplayer repo") and them modified to make this game.
 
