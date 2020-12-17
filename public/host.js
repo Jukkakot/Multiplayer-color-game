@@ -85,7 +85,7 @@ function setup() {
       game.roundCount++
       allPlayersReady = false
     }
-  }, tickRate * 15);
+  }, tickRate * 10);
 }
 
 function startButtonClick() {
